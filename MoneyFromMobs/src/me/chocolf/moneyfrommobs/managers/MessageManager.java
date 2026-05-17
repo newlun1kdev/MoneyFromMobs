@@ -108,12 +108,14 @@ public class MessageManager {
 		});
 
 		if (moveFloatingTextMessageUpwards) {
-			for (int i = 0; i < floatingTextDuration; i += 1) {
-				Bukkit.getScheduler().runTaskLater(plugin, () -> armorstand.teleport(armorstand.getLocation().add(0, 0.1,0)), i);
+			for (int i = 1; i <= floatingTextDuration; i += 1) {
+				// Folia: armorstand operations must run on entity's region thread
+				armorstand.getScheduler().runDelayed(plugin,
+					t -> armorstand.teleport(armorstand.getLocation().add(0, 0.1, 0)), null, i);
 			}
 		}
 
-		Bukkit.getScheduler().runTaskLater(plugin, armorstand::remove, (long) floatingTextDuration);
+		armorstand.getScheduler().runDelayed(plugin, t -> armorstand.remove(), null, (long) floatingTextDuration);
 	}
 	
 	

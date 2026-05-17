@@ -10,13 +10,13 @@ import me.chocolf.moneyfrommobs.integrations.WorldGuardFlags;
 import me.chocolf.moneyfrommobs.listeners.*;
 import me.chocolf.moneyfrommobs.managers.*;
 import me.chocolf.moneyfrommobs.runnables.RepeatingMultiplierEvent;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitTask;
 
 import me.chocolf.moneyfrommobs.integrations.MoneyFromMobsPlaceholderExpansion;
 import me.chocolf.moneyfrommobs.integrations.MythicMobsFileManager;
@@ -38,18 +38,18 @@ public class MoneyFromMobs extends JavaPlugin{
 	private DropsManager dropsManager;
 	private MobManager mobManager;
 	private MultipliersManager multipliersManager;
-	private BukkitTask inventoryIsFullRunnable;
-	private BukkitTask repeatingMultiplierEvent;
+	private ScheduledTask inventoryIsFullRunnable;
+	private ScheduledTask repeatingMultiplierEvent;
 	private PlaceholderAPIListener placeholderListener;
 	private static MoneyFromMobs instance;
-	
+
 	@Override
 	public void onEnable() {
 		instance = this;
-		
+
 		// bstats
 		new Metrics(this, 8361); // 8361 is this plugins id
-		
+
 		// Disable plugin if fail to set up vault and econ plugin
 		if(!setupEconomy()){
 			getLogger().severe("COMPATIBLE ECONOMY PLUGIN NOT FOUND! DISABLING PLUGIN!!!");
@@ -71,10 +71,10 @@ public class MoneyFromMobs extends JavaPlugin{
 			new PaperListeners(this);
 		if(Bukkit.getServer().getPluginManager().isPluginEnabled("WorldGuard") && VersionUtils.getVersionNumber() > 15)
 			new WorldGuardListener(this);
-		
+
 		// config stuff
 		loadConfigs();
-		
+
 		// Commands
 		new ClearDropsCommand(this);
 		new AdminDropMoneyCommand(this);
@@ -92,20 +92,20 @@ public class MoneyFromMobs extends JavaPlugin{
 		dropsManager = new DropsManager(this);
 		mobManager = new MobManager(this);
 		multipliersManager = new MultipliersManager(this);
-		
+
 		// PlaceholderAPI integration
 		if(Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null){
 			new MoneyFromMobsPlaceholderExpansion(this).register();
 			placeholderListener = new PlaceholderAPIListener(this);
 			getLogger().info("Found PlaceholderAPI and expansion successfully registered ");
 		}
-	
-		// Bukkit runnable to allow players to pickup items when inventory is full
+
+		// Folia-aware runnable to allow players to pickup items when inventory is full
 		loadInventoryIsFullRunnable();
 
-		// Bukkit runnable for Repeating Multiplier Event
+		// Folia-aware runnable for Repeating Multiplier Event
 		loadRepeatingMultiplierEvent();
-		
+
 		// Checks if user is using the latest version of the plugin on spigot
 		try {
 			if (UpdateChecker.checkForUpdate())
@@ -115,7 +115,7 @@ public class MoneyFromMobs extends JavaPlugin{
 			getLogger().warning("Unable to retrieve latest update from SpigotMC.org");
 		}
 	}
-	
+
 	@Override
 	public void onLoad() {
 		// loads WorldGuard flag
@@ -123,7 +123,7 @@ public class MoneyFromMobs extends JavaPlugin{
 			WorldGuardFlags.registerFlags();
 		}
 	}
-	
+
 	@Override
 	public void onDisable() {
 		List<World> worldList = Bukkit.getServer().getWorlds();
@@ -148,7 +148,7 @@ public class MoneyFromMobs extends JavaPlugin{
 
 		return econ != null;
     }
-	
+
 	// sets up permission hook
 	private void setupPermissions() {
 		RegisteredServiceProvider<Permission> rsp = getServer().getServicesManager().getRegistration(Permission.class);
@@ -158,18 +158,18 @@ public class MoneyFromMobs extends JavaPlugin{
 			else
 				this.getLogger().warning(MessageManager.applyColour("&cCOMPATIBLE PERMISSIONS PLUGIN NOT FOUND! PERMISSION GROUP MULTIPLIERS WILL NOT WORK!!!"));
 	}
-	
+
 	private void loadConfigs() {
 		// loads config.yml and auto updates it
 		saveDefaultConfig();
 		try {
 			  ConfigUpdater.update(this, "config.yml", new File(getDataFolder(), "config.yml"), Arrays.asList());//The list is sections you want to ignore
-		} 
+		}
 		catch (IOException e) {
 			  e.printStackTrace();
 		}
 		reloadConfig();
-		
+
 		// Makes MythicMobs and Multipliers Config file
 		mmConfig = new MythicMobsFileManager(this);
 		multipliersConfig = new MultipliersFileManager(this);
@@ -177,31 +177,35 @@ public class MoneyFromMobs extends JavaPlugin{
 		// Updates Multipliers.yml
 		try {
 			  ConfigUpdater.update(this, "Multipliers.yml", new File(getDataFolder(), "Multipliers.yml"), Arrays.asList());//The list is sections you want to ignore
-		} 
+		}
 		catch (IOException e) {
 			  e.printStackTrace();
 		}
 	}
-	
+
 	// loads runnable that allows players to pick up money when their inventory is full
 	public void loadInventoryIsFullRunnable() {
 		if (isUsingPaper()) return;
-		
+
 		if ( getConfig().getBoolean("PickupMoneyWhenInventoryIsFull.Enabled")) {
 			int interval = this.getConfig().getInt("PickupMoneyWhenInventoryIsFull.Interval");
-			inventoryIsFullRunnable = new NearEntitiesRunnable(this).runTaskTimer(this, interval, interval);
+			NearEntitiesRunnable runnable = new NearEntitiesRunnable(this);
+			inventoryIsFullRunnable = Bukkit.getGlobalRegionScheduler().runAtFixedRate(this, runnable, interval, interval);
 		}
 	}
 
 	public void loadRepeatingMultiplierEvent(){
-		if(getMultipliersConfig().getConfig().getBoolean("RepeatingMultiplierEvent.Enabled"))
-			repeatingMultiplierEvent = new RepeatingMultiplierEvent(this).runTaskTimer(this, multipliersManager.getRepeatingInitialDelay(), multipliersManager.getRepeatingDelay());
+		if(getMultipliersConfig().getConfig().getBoolean("RepeatingMultiplierEvent.Enabled")) {
+			RepeatingMultiplierEvent runnable = new RepeatingMultiplierEvent(this);
+			repeatingMultiplierEvent = Bukkit.getGlobalRegionScheduler().runAtFixedRate(this, runnable,
+				multipliersManager.getRepeatingInitialDelay(), multipliersManager.getRepeatingDelay());
+		}
 	}
-	
+
 	// checks if server is running Paper 1.13+
 	public boolean isUsingPaper() {
 		String version = getServer().getVersion();
-		return version.contains("Paper") || version.contains("Purpur");
+		return version.contains("Paper") || version.contains("Purpur") || version.contains("Folia");
 	}
 
 	public MythicMobsFileManager getMMConfig() {
@@ -235,11 +239,11 @@ public class MoneyFromMobs extends JavaPlugin{
 	public PlaceholderAPIListener getPlaceholdersListener() {
 		return placeholderListener;
 	}
-	public BukkitTask getInventoryIsFullRunnable() {
+	public ScheduledTask getInventoryIsFullRunnable() {
 		return inventoryIsFullRunnable;
 	}
-	public BukkitTask getRepeatingMultiplierEvent(){return repeatingMultiplierEvent;}
-	public void setRepeatingMultiplierEvent(BukkitTask newRepeatingMultiplierEvent){ repeatingMultiplierEvent = newRepeatingMultiplierEvent;}
+	public ScheduledTask getRepeatingMultiplierEvent(){return repeatingMultiplierEvent;}
+	public void setRepeatingMultiplierEvent(ScheduledTask newRepeatingMultiplierEvent){ repeatingMultiplierEvent = newRepeatingMultiplierEvent;}
 	public static MoneyFromMobs getInstance() {
 		return instance;
 	}

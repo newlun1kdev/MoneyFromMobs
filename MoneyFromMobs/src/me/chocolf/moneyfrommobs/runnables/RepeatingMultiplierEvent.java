@@ -1,22 +1,24 @@
 package me.chocolf.moneyfrommobs.runnables;
 
+import java.util.function.Consumer;
+
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import me.chocolf.moneyfrommobs.MoneyFromMobs;
 import me.chocolf.moneyfrommobs.managers.MultipliersManager;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 
 
-public class RepeatingMultiplierEvent extends BukkitRunnable{
+public class RepeatingMultiplierEvent implements Consumer<ScheduledTask> {
 
 	private final MoneyFromMobs plugin;
 
 	public RepeatingMultiplierEvent(MoneyFromMobs plugin) {
 		this.plugin = plugin;
 	}
-	
-	public void run() {
+
+	@Override
+	public void accept(ScheduledTask scheduledTask) {
 		MultipliersManager multipliersManager = plugin.getMultipliersManager();
 		if (multipliersManager.getCurrentMultiplierEvent() == null){
 			multipliersManager.setEventMultiplier(multipliersManager.getRepeatingMultiplier());
@@ -30,7 +32,7 @@ public class RepeatingMultiplierEvent extends BukkitRunnable{
 			}
 
 			// run task later to set multiplier back to 0 and send message to players
-			BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+			ScheduledTask task = Bukkit.getGlobalRegionScheduler().runDelayed(plugin, t -> {
 				multipliersManager.setEventMultiplier(0);
 				multipliersManager.setCurrentMultiplierEvent(null, 0);
 
@@ -40,7 +42,7 @@ public class RepeatingMultiplierEvent extends BukkitRunnable{
 						p.sendMessage(multipliersManager.getRepeatingEndMessage());
 				}
 			}, multipliersManager.getRepeatingDuration() * 20L);
-			multipliersManager.setCurrentMultiplierEvent(task, (long) multipliersManager.getRepeatingDuration());
+			multipliersManager.setCurrentMultiplierEvent(task, multipliersManager.getRepeatingDuration());
 		}
 	}
 }

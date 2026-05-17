@@ -1,10 +1,12 @@
 package me.chocolf.moneyfrommobs.managers;
 
-import java.lang.reflect.Field;
+import java.net.URI;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.destroystokyo.paper.profile.PlayerProfile;
+import com.destroystokyo.paper.profile.ProfileProperty;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -16,9 +18,6 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
-
-import com.mojang.authlib.GameProfile;
-import com.mojang.authlib.properties.Property;
 
 import me.chocolf.moneyfrommobs.MoneyFromMobs;
 import me.chocolf.moneyfrommobs.api.events.GiveMoneyEvent;
@@ -76,10 +75,13 @@ public class PickUpManager {
 		}
 		// Makes item glow if it is enabled
 		if (config.getBoolean("MoneyDropsOnGround.Enchanted")){
-			itemToDrop.addUnsafeEnchantment(Enchantment.DURABILITY, 1);
-			meta = itemToDrop.getItemMeta();
-			meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-			itemToDrop.setItemMeta(meta);
+			Enchantment unbreaking = org.bukkit.Registry.ENCHANTMENT.get(org.bukkit.NamespacedKey.minecraft("unbreaking"));
+			if (unbreaking != null) {
+				itemToDrop.addUnsafeEnchantment(unbreaking, 1);
+				meta = itemToDrop.getItemMeta();
+				meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+				itemToDrop.setItemMeta(meta);
+			}
 		}
 		
 		// loads Item Name
@@ -174,24 +176,14 @@ public class PickUpManager {
 		return matcher.find();
 	}
 
-	@SuppressWarnings("deprecation")
 	private ItemStack getCustomHead(String value) {
-		ItemStack head;
-		if (VersionUtils.getVersionNumber() > 12) {
-			head = new ItemStack(Material.PLAYER_HEAD, 1);
-		}
-		else {
-			head = new ItemStack(Material.valueOf("SKULL_ITEM"),1,(short) 3);
-		}
+	    ItemStack head = new ItemStack(Material.PLAYER_HEAD, 1);
 	    SkullMeta meta = (SkullMeta) head.getItemMeta();
-	    GameProfile profile = new GameProfile(UUID.randomUUID(), "");
-	    profile.getProperties().put("textures", new Property("textures", value));
-	    Field profileField;
 	    try {
-	        profileField = meta.getClass().getDeclaredField("profile");
-	        profileField.setAccessible(true);
-	        profileField.set(meta, profile);
-	    } catch (IllegalArgumentException | IllegalAccessException | NoSuchFieldException | SecurityException e) {
+	        PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID(), null);
+	        profile.getProperties().add(new ProfileProperty("textures", value));
+	        meta.setPlayerProfile(profile);
+	    } catch (Exception e) {
 	        e.printStackTrace();
 	    }
 	    head.setItemMeta(meta);

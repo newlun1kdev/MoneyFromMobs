@@ -3,37 +3,36 @@ package me.chocolf.moneyfrommobs.managers;
 import java.util.HashMap;
 
 import io.lumine.mythic.bukkit.BukkitAPIHelper;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import me.glaremasters.guilds.Guilds;
 import me.glaremasters.guilds.api.GuildsAPI;
 import me.glaremasters.guilds.guild.Guild;
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import io.hotmail.com.jacob_vejvoda.infernal_mobs.infernal_mobs;
 import io.lumine.mythic.bukkit.MythicBukkit;
 import me.chocolf.moneyfrommobs.MoneyFromMobs;
 import me.chocolf.moneyfrommobs.utils.RandomNumberUtils;
-import org.bukkit.scheduler.BukkitTask;
 
 public class MultipliersManager {
-	
+
 	private final MoneyFromMobs plugin;
-	private static infernal_mobs infernalMobsAPI;
 	private LevelledMobsManager levelledMobsManager;
 	private static GuildsAPI guildsAPI;
 	private double lootingMultiplier;
 	private double eventMultiplier = 0;
 	private double mythicMobsLevelsMultiplier = 0;
 	private double levelledMobsMultiplier = 0;
-	private double infernalMobsMultiplier = 0;
 	private double guildsMultiplier = 0;
-	private BukkitTask currentMultiplierEvent;
+	private ScheduledTask currentMultiplierEvent;
 	private long currentEventEndTime;
-	
+
 	private final HashMap<String, Double> worldMultipliers = new HashMap<>();
 	private final HashMap<String, Double> permissionGroupMultipliers = new HashMap<>();
 	private final HashMap<String, Double> playerDeathMultipliers = new HashMap<>();
@@ -44,6 +43,16 @@ public class MultipliersManager {
 	private int repeatingInitialDelay;
 	private String repeatingStartMessage;
 	private String repeatingEndMessage;
+
+	private static final Enchantment LOOTING_ENCHANTMENT = resolveLootingEnchantment();
+
+	private static Enchantment resolveLootingEnchantment() {
+		try {
+			return Registry.ENCHANTMENT.get(NamespacedKey.minecraft("looting"));
+		} catch (Throwable t) {
+			return null;
+		}
+	}
 
 	public MultipliersManager(MoneyFromMobs plugin) {
 		this.plugin = plugin;
@@ -58,7 +67,6 @@ public class MultipliersManager {
 		loadPlayerDeathMultipliers(config);
 		loadMythicMobsLevelsMultiplier(config);
 		loadLevelledMobsMultiplier(config);
-		loadInfernalMobsMultiplier(config);
 		loadGuildsMultiplier(config);
 		reloadRepeatingMultiplierEventValues(config);
 	}
@@ -74,7 +82,7 @@ public class MultipliersManager {
 
 	public double applyMultipliers(double amount, Player p, Entity entityKilled) {
 		double baseAmount = amount;
-		
+
 		if ( p!=null ) {
 			amount += applyLootingMultiplier(baseAmount, p.getInventory().getItemInMainHand());
 			amount += applyPermissionGroupMultiplier(baseAmount, p);
@@ -83,57 +91,57 @@ public class MultipliersManager {
 		amount += applyWorldMultiplier(baseAmount, entityKilled.getWorld().getName());
 		amount += applyMythicMobsLevelsMultiplier(baseAmount, entityKilled);
 		amount += applyLevelledMobsMultiplier(baseAmount, entityKilled);
-		amount += applyInfernalMobsMultiplier(baseAmount, entityKilled);
 		amount += applyGuildsMultiplier(baseAmount, p);
-		
+
 		return RandomNumberUtils.round(amount, 2);
 	}
-	
+
 	public double applyPlayerDeathMultipliers(double baseAmount, Player p) {
 		if (this.playerDeathMultipliers.isEmpty())
 			return 0;
 		if (!p.isOnline())
 			return 0;
-		
+
 		String[] playerGroups = plugin.getPerms().getPlayerGroups(p);
 		if (playerGroups.length == 0)
 			return 0;
-		
+
 		double amountToAdd = 0;
 		for (String groupName : playerGroups) {
 			if (!playerDeathMultipliers.containsKey(groupName))
 				continue;
-			
+
 			double groupMultiplier = playerDeathMultipliers.get(groupName);
 			amountToAdd += baseAmount * groupMultiplier;
 		}
 		return RandomNumberUtils.round(amountToAdd, 2);
 	}
-	
+
 	private double applyLootingMultiplier(double baseAmount, ItemStack killersWeapon) {
-		int lootingLevel = killersWeapon.getEnchantmentLevel(Enchantment.LOOT_BONUS_MOBS );
+		if (LOOTING_ENCHANTMENT == null) return 0;
+		int lootingLevel = killersWeapon.getEnchantmentLevel(LOOTING_ENCHANTMENT);
 		return baseAmount * lootingMultiplier * lootingLevel;
 	}
-	
+
 	private double applyEventMultiplier(double baseAmount) {
 		return baseAmount * eventMultiplier;
 	}
-	
+
 	private double applyWorldMultiplier(double baseAmount, String worldName) {
 		if (worldMultipliers.isEmpty() || !worldMultipliers.containsKey(worldName))
 			return 0;
-		
+
 		double worldMultiplier = worldMultipliers.get(worldName);
 		baseAmount *= worldMultiplier;
 		return baseAmount;
 	}
-	
+
 	private double applyPermissionGroupMultiplier(double baseAmount, Player p) {
 		if (permissionGroupMultipliers.isEmpty())
 			return 0;
 		if (!p.isOnline())
 			return 0;
-		
+
 		String[] playerGroups = plugin.getPerms().getPlayerGroups(p);
 		if (playerGroups.length == 0)
 			return 0;
@@ -141,13 +149,13 @@ public class MultipliersManager {
 		for (String groupName : playerGroups) {
 			if (!permissionGroupMultipliers.containsKey(groupName))
 				continue;
-			
+
 			double groupMultiplier = permissionGroupMultipliers.get(groupName);
 			amountToAdd += baseAmount * groupMultiplier;
 		}
 		return amountToAdd;
 	}
-	
+
 	private double applyMythicMobsLevelsMultiplier(double baseAmount, Entity entity) {
 		if (mythicMobsLevelsMultiplier == 0)
 			return 0;
@@ -158,7 +166,7 @@ public class MultipliersManager {
 		}
 		return 0;
 	}
-	
+
 	private double applyLevelledMobsMultiplier(double baseAmount, Entity entity) {
 		if (levelledMobsMultiplier == 0)
 			return 0;
@@ -169,18 +177,9 @@ public class MultipliersManager {
 		}
 		return 0;
 	}
-	
-	private double applyInfernalMobsMultiplier(double amountToAdd, Entity entity) {
-		if (infernalMobsMultiplier == 0)
-			return 0;
-		if ( infernalMobsAPI.findMobAbilities(entity.getUniqueId())!= null ) {
-			return amountToAdd * infernalMobsMultiplier;
-		}
-		return 0;
-	}
 
 	private double applyGuildsMultiplier(double amountToAdd, Player player){
-		if (guildsMultiplier == 0)
+		if (guildsMultiplier == 0 || player == null)
 			return 0;
 		Guild playersGuild = guildsAPI.getGuild(player);
 		if (playersGuild != null){
@@ -189,15 +188,15 @@ public class MultipliersManager {
 		}
 		return 0;
 	}
-			
+
 	// load multipliers
-	
+
 	private void loadLootingMultiplier(FileConfiguration config) {
 		String strLootingMultiplier = config.getString("LootingMultiplier").replace("%", "");
 		lootingMultiplier =  Double.parseDouble(strLootingMultiplier)/100;
 		plugin.getMessageManager().logToConsole("&b[MoneyFromMobs] Successfully loaded Looting multiplier of " + strLootingMultiplier + "% per level of enchantment");
 	}
-	
+
 	private void loadPermissionGroupMultipliers(FileConfiguration config) {
 		permissionGroupMultipliers.clear();
 		if (plugin.getPerms() == null)
@@ -206,59 +205,59 @@ public class MultipliersManager {
 		for (String permissionGroup : config.getStringList("PermissionGroupMultipliers")) {
 			String[] splitList = permissionGroup.split(" ");
 			String permissionGroupName = splitList[0];
-			
+
 			if (permissionGroupName.equalsIgnoreCase("NONE") )
 				return;
-			
+
 			double permissionGroupMultiplier = Double.parseDouble(splitList[1].replace("%", "") )/100;
 			permissionGroupMultipliers.put(permissionGroupName, permissionGroupMultiplier);
 			plugin.getMessageManager().logToConsole("&b[MoneyFromMobs] Successfully loaded Permission multiplier of " + splitList[1] + " For Permission Group: " + permissionGroupName);
 		}
 	}
-	
+
 	private void loadWorldMultipliers(FileConfiguration config) {
 		worldMultipliers.clear();
 		for (String world : config.getStringList("WorldMultipliers")) {
 			String[] splitList = world.split(" ");
 			String worldName = splitList[0];
-			
+
 			if (worldName.equalsIgnoreCase("NONE"))
 				return;
-			
+
 			Double worldMultiplier = Double.parseDouble(splitList[1].replace("%", "") )/100;
 			worldMultipliers.put(worldName,  worldMultiplier);
 			plugin.getMessageManager().logToConsole("&b[MoneyFromMobs] Successfully loaded World multiplier of " + splitList[1] + " For World: " + worldName);
 		}
 	}
-	
+
 	private void loadPlayerDeathMultipliers(FileConfiguration config) {
 		playerDeathMultipliers.clear();
-		
+
 		if (plugin.getPerms() == null)
 			return;
 
 		for (String permissionGroup : config.getStringList("PlayerDeathMultipliers")) {
 			String[] splitList = permissionGroup.split(" ");
 			String permissionGroupName = splitList[0];
-			
+
 			if (permissionGroupName.equalsIgnoreCase("NONE") )
 				return;
-			
+
 			double playerDeathMultiplier = Double.parseDouble(splitList[1].replace("%", "") )/100;
 			playerDeathMultipliers.put(permissionGroupName, playerDeathMultiplier);
 			plugin.getMessageManager().logToConsole("&b[MoneyFromMobs] Successfully loaded Player Death multiplier of " + splitList[1] + " For Permission Group: " + permissionGroupName);
 		}
 	}
-	
+
 	private void loadMythicMobsLevelsMultiplier(FileConfiguration config) {
 		if (Bukkit.getPluginManager().isPluginEnabled("MythicMobs")) {
 			String strMythicMobsLevelsMultiplier = config.getString("MythicMobsLevelsMultiplier").replace("%", "");
 			mythicMobsLevelsMultiplier = Double.parseDouble(strMythicMobsLevelsMultiplier)/100;
 
 			plugin.getMessageManager().logToConsole("&b[MoneyFromMobs] Found MythicMobs and successfully loaded multiplier of " + strMythicMobsLevelsMultiplier + "% per level of mob");
-		}	
+		}
 	}
-	
+
 	private void loadLevelledMobsMultiplier(FileConfiguration config) {
 		levelledMobsManager = new LevelledMobsManager();
 
@@ -266,15 +265,6 @@ public class MultipliersManager {
 			String strLevelledMobsMultiplier = config.getString("LevelledMobsMultiplier").replace("%", "");
 			levelledMobsMultiplier = Double.parseDouble(strLevelledMobsMultiplier)/100;
 			plugin.getMessageManager().logToConsole("&b[MoneyFromMobs] Found LevelledMobs and successfully loaded multiplier of " + strLevelledMobsMultiplier + "% per level of mob");
-		}
-	}
-	
-	private void loadInfernalMobsMultiplier(FileConfiguration config) {
-		if (Bukkit.getPluginManager().isPluginEnabled("InfernalMobs")) {
-			infernalMobsAPI = (infernal_mobs) Bukkit.getPluginManager().getPlugin("InfernalMobs");
-			String strInfernalMobsMultiplier = config.getString("InfernalMobsMultiplier").replace("%", "");
-			infernalMobsMultiplier = Double.parseDouble(strInfernalMobsMultiplier)/100;
-			plugin.getMessageManager().logToConsole("&b[MoneyFromMobs] Found Infernal Mobs and successfully loaded multiplier of " + strInfernalMobsMultiplier + "%");
 		}
 	}
 
@@ -290,15 +280,15 @@ public class MultipliersManager {
 	public void setEventMultiplier(double eventMultiplier) {
 		this.eventMultiplier = eventMultiplier;
 	}
-	
+
 	public double getEventMultiplier() {
 		return eventMultiplier;
 	}
 
-	public BukkitTask getCurrentMultiplierEvent(){
+	public ScheduledTask getCurrentMultiplierEvent(){
 		return currentMultiplierEvent;
 	}
-	public void setCurrentMultiplierEvent(BukkitTask task, long eventDuration){
+	public void setCurrentMultiplierEvent(ScheduledTask task, long eventDuration){
 		currentMultiplierEvent = task;
 		if (eventDuration != 0) {
 			currentEventEndTime = System.currentTimeMillis() + (eventDuration * 1000);
@@ -322,14 +312,14 @@ public class MultipliersManager {
 
 		if (newDelay != repeatingDelay || (plugin.getRepeatingMultiplierEvent() == null && config.getBoolean("RepeatingMultiplierEvent.Enabled")) ){
 			if (plugin.getRepeatingMultiplierEvent() != null) {
-				Bukkit.getScheduler().cancelTask(plugin.getRepeatingMultiplierEvent().getTaskId());
+				plugin.getRepeatingMultiplierEvent().cancel();
 			}
 			reloadRepeatingMultiplierEventValues(config);
 			plugin.loadRepeatingMultiplierEvent();
 		}
 		else if (!config.getBoolean("RepeatingMultiplierEvent.Enabled")){
 			if (plugin.getRepeatingMultiplierEvent() != null) {
-				Bukkit.getScheduler().cancelTask(plugin.getRepeatingMultiplierEvent().getTaskId());
+				plugin.getRepeatingMultiplierEvent().cancel();
 			}
 			plugin.setRepeatingMultiplierEvent(null);
 		}

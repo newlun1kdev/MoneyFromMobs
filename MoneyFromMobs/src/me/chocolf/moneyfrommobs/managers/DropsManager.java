@@ -148,7 +148,8 @@ public class DropsManager {
 
 			// schedules task to remove drop in certain amount of time if enabled
 			if (autoRemoveDrop) {
-				Bukkit.getScheduler().runTaskLater(plugin, itemDropped::remove, timeUntilRemove * 20L);
+				// Folia: item operations must run on the entity's region thread
+				itemDropped.getScheduler().runDelayed(plugin, t -> itemDropped.remove(), null, timeUntilRemove * 20L);
 			}
 		}
 	}
@@ -184,7 +185,7 @@ public class DropsManager {
 		}
 		else {
 			numberOfDropsThisMinute.put(playerName, 1);
-			Bukkit.getScheduler().runTaskLater(plugin, () -> numberOfDropsThisMinute.remove(playerName), 1200L);
+			Bukkit.getGlobalRegionScheduler().runDelayed(plugin, t -> numberOfDropsThisMinute.remove(playerName), 1200L);
 			return false;
 		}
 	}

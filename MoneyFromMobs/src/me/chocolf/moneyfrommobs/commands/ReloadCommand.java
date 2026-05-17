@@ -45,10 +45,10 @@ public class ReloadCommand implements CommandExecutor{
 		mobManager.init();
 		multipliersManager.init();
 		
-		// reloads bukkit runnable if user is not using paper
+		// reloads runnable if user is not using paper
 		if (!plugin.isUsingPaper()) {
 			if (plugin.getInventoryIsFullRunnable() != null) {
-				Bukkit.getScheduler().cancelTask(plugin.getInventoryIsFullRunnable().getTaskId());
+				plugin.getInventoryIsFullRunnable().cancel();
 			}
 			plugin.loadInventoryIsFullRunnable();
 		}

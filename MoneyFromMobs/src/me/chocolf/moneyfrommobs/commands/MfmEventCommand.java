@@ -1,34 +1,34 @@
 package me.chocolf.moneyfrommobs.commands;
 
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitTask;
 
 import me.chocolf.moneyfrommobs.MoneyFromMobs;
 import me.chocolf.moneyfrommobs.managers.MessageManager;
 import me.chocolf.moneyfrommobs.managers.MultipliersManager;
 
 public class MfmEventCommand implements CommandExecutor{
-	
+
 	private final MoneyFromMobs plugin;
 
-	
-	
+
+
 	public MfmEventCommand(MoneyFromMobs plugin) {
 		this.plugin = plugin;
-		plugin.getCommand("mfmevent").setExecutor(this);	
+		plugin.getCommand("mfmevent").setExecutor(this);
 	}
-	
+
 	@Override
 	public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
 		int numberOfArgs = args.length;
 		MessageManager messageManager = plugin.getMessageManager();
 		MultipliersManager multipliersManager = plugin.getMultipliersManager();
-		BukkitTask task = multipliersManager.getCurrentMultiplierEvent();
-		
+		ScheduledTask task = multipliersManager.getCurrentMultiplierEvent();
+
 		if (numberOfArgs > 0) {
 			if (args[0].equalsIgnoreCase("stop")) {
 				if (task != null) {
@@ -43,7 +43,7 @@ public class MfmEventCommand implements CommandExecutor{
 								p.sendMessage(messageToSendOnEnd);
 						}
 					}
-					Bukkit.getScheduler().cancelTask(task.getTaskId());
+					task.cancel();
 					multipliersManager.setCurrentMultiplierEvent(null, 0);
 				}
 				else {
@@ -58,7 +58,7 @@ public class MfmEventCommand implements CommandExecutor{
 						sender.sendMessage(messageManager.getMessage("eventAlreadyRunningMessage"));
 						return true;
 					}
-					
+
 					multipliersManager.setEventMultiplier(Double.parseDouble(args[1].replace("%", ""))/100);
 					String duration = args[2];
 					int hours = 0;
@@ -98,7 +98,7 @@ public class MfmEventCommand implements CommandExecutor{
 
 					}
 
-					BukkitTask currentTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+					ScheduledTask currentTask = Bukkit.getGlobalRegionScheduler().runDelayed(plugin, t -> {
 						multipliersManager.setEventMultiplier(0);
 						multipliersManager.setCurrentMultiplierEvent(null, 0);
 						String messageToSendOnEnd = messageManager.getMessage("eventFinish");
@@ -120,12 +120,10 @@ public class MfmEventCommand implements CommandExecutor{
 			}
 			else
 				return false;
-			
+
 		}
 		return false;
-		
+
 	}
 
 }
-
-
