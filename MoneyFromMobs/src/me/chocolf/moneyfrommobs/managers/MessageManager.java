@@ -120,11 +120,16 @@ public class MessageManager {
 	
 	
 	public static String applyColour (String msg) {
+		if (msg == null) return "";
 		if ( VersionUtils.getVersionNumber() > 15) {
 			Matcher match = hexColorPattern.matcher(msg);
 			while (match.find()) {
 				String color = msg.substring(match.start(), match.end());
-				msg = msg.replace(color, ChatColor.valueOf(color) + "");
+				try {
+					msg = msg.replace(color, ChatColor.of(color) + "");
+				} catch (Throwable t) {
+					msg = msg.replace(color, "");
+				}
 				match = hexColorPattern.matcher(msg);
 			}
 		}
